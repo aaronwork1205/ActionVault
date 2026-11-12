@@ -170,7 +170,7 @@ struct ContentView: View {
             Spacer()
             Button { model.showBackup() } label: { Label("查看备份与记录", systemImage: "folder") }
                 .buttonStyle(.plain).disabled(model.destination == nil)
-            Text("每一段精彩，都值得留下。\n版本 1.0.0 · macOS")
+            Text("每一段精彩，都值得留下。\n版本 1.0.1 · macOS")
                 .font(.caption2).foregroundStyle(.tertiary).lineSpacing(5)
         }
         .padding(22).frame(width: 205).frame(maxHeight: .infinity)

@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="Resources/AppIcon.png" alt="ActionVault 应用图标" width="128" />
+
 # ActionVault
 
 ### 每一段精彩，都值得留下。
@@ -9,7 +11,7 @@
 
 **macOS 13+** · **Apple Silicon & Intel** · **SwiftUI** · **无第三方依赖**
 
-**[⬇ 下载 macOS 通用版 DMG](https://github.com/aaronwork1205/ActionVault/releases/download/v1.0.0/ActionVault.dmg)** · [版本说明与校验文件](https://github.com/aaronwork1205/ActionVault/releases/tag/v1.0.0)
+**[⬇ 下载 macOS 通用版 DMG](https://github.com/aaronwork1205/ActionVault/releases/download/v1.0.1/ActionVault.dmg)** · [版本说明与校验文件](https://github.com/aaronwork1205/ActionVault/releases/tag/v1.0.1)
 
 [快速开始](#快速开始) · [备份如何工作](#备份如何工作) · [常见问题](#常见问题) · [开发与打包](#开发与打包)
 

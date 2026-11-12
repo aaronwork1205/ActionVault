@@ -12,6 +12,8 @@ swift build "${BUILD_ARGS[@]}"
 BIN_DIR=$(swift build "${BUILD_ARGS[@]}" --show-bin-path)
 APP="dist/ActionVault.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+./scripts/build-icon.sh
+cp .build/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp "$BIN_DIR/ActionVault" "$APP/Contents/MacOS/ActionVault"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -21,9 +23,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>local.actionvault.camera-backup</string>
 <key>CFBundleName</key><string>ActionVault</string>
 <key>CFBundleDisplayName</key><string>ActionVault</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.0.0</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>1.0.1</string>
+<key>CFBundleVersion</key><string>2</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSRemovableVolumesUsageDescription</key><string>读取相机素材，并在您确认后清理已验证备份的原文件。</string>
