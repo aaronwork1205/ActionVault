@@ -13,23 +13,19 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 23) {
                     HStack {
                         VStack(alignment: .leading, spacing: 7) {
-                            Text("为下一段旅程，腾出空间。").font(.system(size: 27, weight: .semibold))
-                            Text("从相机到你的存储空间，每一份素材都有迹可循。")
-                                .foregroundStyle(.secondary)
+                            Text("相机备份").font(.system(size: 27, weight: .semibold))
                         }
                         Spacer()
                         Label("本地运行", systemImage: "lock.shield").font(.caption).foregroundStyle(accent)
                     }
                     card {
-                        sectionTitle("01", "连接你的相机", icon: "camera")
+                        sectionTitle("01", "相机", icon: "camera")
                         if model.devices.isEmpty {
                             HStack(spacing: 18) {
                                 Image(systemName: "cable.connector").font(.system(size: 36)).foregroundStyle(.secondary)
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("等待相机连接").font(.headline)
-                                    Text("用数据线连接 DJI Action，并在相机上选择「文件传输」。")
-                                    Text("识别已挂载的相机存储盘；不读取摄像头模式或 MTP 设备。")
-                                        .font(.caption).foregroundStyle(.secondary)
+                                    Text("连接 USB，选择「文件传输」。")
                                 }
                             }.padding(.vertical, 12)
                         } else {
@@ -46,16 +42,15 @@ struct ContentView: View {
                             Button("刷新设备", systemImage: "arrow.clockwise") { model.refresh() }
                             Button("手动选择相机…") { model.chooseSource() }
                             Spacer()
-                            Text("包含 DCIM 的外置存储盘").font(.caption).foregroundStyle(.tertiary)
                         }.disabled(model.busy)
                     }
                     card {
-                        sectionTitle("02", "素材的安全目的地", icon: "externaldrive")
+                        sectionTitle("02", "备份位置", icon: "externaldrive")
                         HStack(spacing: 15) {
                             Image(systemName: "folder.badge.plus").font(.system(size: 30)).foregroundStyle(accent)
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(model.destination?.lastPathComponent ?? "选择备份文件夹").font(.headline)
-                                Text(model.destination?.path ?? "本机硬盘、外置磁盘，或已挂载的 NAS / SMB 共享")
+                                Text(model.destination?.path ?? "本机 / 外置硬盘 / NAS")
                                     .font(.caption).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(3)
                             }
                             Spacer()
@@ -68,19 +63,19 @@ struct ContentView: View {
                         }
                     }
                     card {
-                        sectionTitle("03", "按你的方式备份", icon: "slider.horizontal.3")
+                        sectionTitle("03", "备份选项", icon: "slider.horizontal.3")
                         Toggle(isOn: $model.autoBackup) {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("连接 DJI 相机后自动备份")
-                                Text("应用运行时生效，仅自动复制；依据磁盘名称和 DJI 目录识别。")
+                                Text("连接后自动备份")
+                                Text("应用运行时生效，保留原文件。")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }.toggleStyle(.switch).disabled(model.busy)
                         Divider().padding(.vertical, 3)
                         Toggle(isOn: $model.deleteOriginals) {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("本次手动备份后，删除相机中的原文件")
-                                Text("整批备份验证成功后才清理，删除前再次校验两端文件。")
+                                Text("本次备份后删除原文件")
+                                Text("全部校验通过后清理。")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }.toggleStyle(.switch).tint(.orange).disabled(model.busy)
@@ -132,7 +127,7 @@ struct ContentView: View {
         .sheet(isPresented: $showNetwork) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("连接网络存储").font(.title2.bold())
-                Text("使用 Finder 连接 NAS。认证信息由 macOS 管理，连接成功后再选择备份文件夹。")
+                Text("连接后，选择共享中的备份文件夹。")
                     .foregroundStyle(.secondary)
                 TextField("smb://nas.local/Photos", text: $model.networkAddress)
                 HStack {
@@ -164,13 +159,13 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("备份守护").font(.caption).foregroundStyle(.secondary)
                 Label("原始画质保留", systemImage: "photo.stack")
-                Label("完整性逐文件验证", systemImage: "checkmark.shield")
+                Label("完整性校验", systemImage: "checkmark.shield")
                 Label("同名素材不覆盖", systemImage: "doc.on.doc")
             }.font(.caption)
             Spacer()
             Button { model.showBackup() } label: { Label("查看备份与记录", systemImage: "folder") }
                 .buttonStyle(.plain).disabled(model.destination == nil)
-            Text("每一段精彩，都值得留下。\n版本 1.0.1 · macOS")
+            Text("1.0.2 · macOS")
                 .font(.caption2).foregroundStyle(.tertiary).lineSpacing(5)
         }
         .padding(22).frame(width: 205).frame(maxHeight: .infinity)

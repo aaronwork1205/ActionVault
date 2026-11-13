@@ -17,7 +17,7 @@ final class AppModel: ObservableObject {
     @Published var autoBackup: Bool { didSet { UserDefaults.standard.set(autoBackup, forKey: "autoBackup") } }
     @Published var busy = false
     @Published var progress: BackupProgress?
-    @Published var message = "连接相机，安心归档每一次冒险。"
+    @Published var message = ""
     @Published var error: String?
     @Published var lastReport: BackupReport?
     @Published var networkAddress = "smb://"
@@ -88,14 +88,14 @@ final class AppModel: ObservableObject {
             error = "请输入有效的网络地址，例如 smb://nas.local/Photos"; return
         }
         NSWorkspace.shared.open(url)
-        message = "请在 Finder 完成连接，然后选择网络共享中的备份文件夹。"
+        message = "连接后请选择备份文件夹。"
     }
     func start(automatic: Bool = false) {
         guard canStart, let device, let destination else { return }
         attempted.insert(device.id)
         let shouldDelete = !automatic && deleteOriginals
         busy = true; error = nil; lastReport = nil; progress = nil
-        message = automatic ? "已检测到 DJI 相机，正在自动备份。" : "备份进行中，请保持相机和目标磁盘连接。"
+        message = automatic ? "自动备份中" : ""
         activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled], reason: "Camera backup in progress")
         job = Task {
             let worker = Task.detached(priority: .userInitiated) {
@@ -121,7 +121,7 @@ final class AppModel: ObservableObject {
             startNextAutomatic()
         }
     }
-    func cancel() { job?.cancel(); message = "正在安全停止，请稍候…" }
+    func cancel() { job?.cancel(); message = "正在停止…" }
     func showBackup() {
         guard let destination else { return }
         let root = destination.appendingPathComponent("ActionVault")
