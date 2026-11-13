@@ -20,6 +20,10 @@ final class AppModel: ObservableObject {
     @Published var message = ""
     @Published var error: String?
     @Published var lastReport: BackupReport?
+    @Published var history: [BackupReport] = []
+    @Published var historyError: String?
+    let historyDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("ActionVault/History", isDirectory: true)
     @Published var networkAddress = "smb://"
     private var job: Task<Void, Never>?
     private var watchers: [NSObjectProtocol] = []
@@ -40,6 +44,7 @@ final class AppModel: ObservableObject {
                 }
             })
         }
+        reloadHistory(recoverInterrupted: true)
         refresh()
     }
     func refresh() {
@@ -99,7 +104,10 @@ final class AppModel: ObservableObject {
         activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled], reason: "Camera backup in progress")
         job = Task {
             let worker = Task.detached(priority: .userInitiated) {
-                try BackupEngine.run(source: device.url, destination: destination, deleteOriginals: shouldDelete) { update in
+                try BackupEngine.run(source: device.url, destination: destination, deleteOriginals: shouldDelete,
+                                     localLogDirectory: self.historyDirectory, snapshot: { report in
+                    Task { @MainActor in self.receiveReport(report) }
+                }) { update in
                     Task { @MainActor in self.progress = update }
                 }
             }
@@ -121,6 +129,17 @@ final class AppModel: ObservableObject {
             startNextAutomatic()
         }
     }
+    func receiveReport(_ report: BackupReport) {
+        if let index = history.firstIndex(where: { $0.id == report.id }) { history[index] = report }
+        else { history.insert(report, at: 0) }
+    }
+    func reloadHistory(recoverInterrupted: Bool = false) {
+        do {
+            history = try BackupHistory.load(from: historyDirectory, recoverInterrupted: recoverInterrupted)
+            historyError = nil
+        } catch { historyError = "无法读取本机记录：\(error.localizedDescription)" }
+    }
+    func openHistoryFolder() { NSWorkspace.shared.open(historyDirectory) }
     func cancel() { job?.cancel(); message = "正在停止…" }
     func showBackup() {
         guard let destination else { return }

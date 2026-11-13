@@ -5,6 +5,7 @@ struct ContentView: View {
     @ObservedObject var model: AppModel
     @State private var confirmDelete = false
     @State private var showNetwork = false
+    @State private var showHistory = false
     private let accent = Color(red: 0.19, green: 0.79, blue: 0.63)
     var body: some View {
         HStack(spacing: 0) {
@@ -124,6 +125,7 @@ struct ContentView: View {
         } message: {
             Text("将备份「\(model.device?.name ?? "相机")」DCIM 中的所有非隐藏普通文件至「\(model.destination?.path ?? "")」。整批校验通过后永久删除对应原文件，不经过废纸篓。")
         }
+        .sheet(isPresented: $showHistory) { HistoryView(model: model) }
         .sheet(isPresented: $showNetwork) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("连接网络存储").font(.title2.bold())
@@ -163,9 +165,11 @@ struct ContentView: View {
                 Label("同名素材不覆盖", systemImage: "doc.on.doc")
             }.font(.caption)
             Spacer()
-            Button { model.showBackup() } label: { Label("查看备份与记录", systemImage: "folder") }
+            Button { showHistory = true } label: { Label("备份记录", systemImage: "clock.arrow.circlepath") }
+                .buttonStyle(.plain)
+            Button { model.showBackup() } label: { Label("打开备份文件夹", systemImage: "folder") }
                 .buttonStyle(.plain).disabled(model.destination == nil)
-            Text("1.0.2 · macOS")
+            Text("1.1.0 · macOS")
                 .font(.caption2).foregroundStyle(.tertiary).lineSpacing(5)
         }
         .padding(22).frame(width: 205).frame(maxHeight: .infinity)

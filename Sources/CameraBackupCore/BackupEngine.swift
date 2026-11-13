@@ -16,8 +16,15 @@ public struct BackupEntry: Codable, Sendable {
     public let bytes: Int64
     public let reused: Bool
     public var deleted: Bool = false
+    public var completedAt: Date? = nil
 }
-public struct BackupReport: Codable, Sendable {
+public struct BackupEvent: Codable, Sendable {
+    public let time: Date
+    public let phase: String
+    public let completedFiles: Int
+    public let transferredBytes: Int64
+}
+public struct BackupReport: Codable, Sendable, Identifiable {
     public let id: UUID
     public let started: Date
     public var finished: Date?
@@ -26,6 +33,15 @@ public struct BackupReport: Codable, Sendable {
     public var status: String
     public var entries: [BackupEntry]
     public var error: String?
+    public var totalFiles: Int? = nil
+    public var totalBytes: Int64? = nil
+    public var transferredBytes: Int64? = nil
+    public var events: [BackupEvent]? = nil
+    public var verifiedBytes: Int64 { entries.reduce(0) { $0 + $1.bytes } }
+    public var completion: Double? {
+        guard let totalFiles, totalFiles > 0 else { return nil }
+        return min(1, Double(entries.count) / Double(totalFiles))
+    }
 }
 public enum BackupError: LocalizedError {
     case invalid(String)
@@ -91,7 +107,34 @@ public enum BackupEngine {
         }
     }
     public static func run(source: URL, destination: URL, deleteOriginals: Bool,
+                           localLogDirectory: URL? = nil,
+                           snapshot: @escaping @Sendable (BackupReport) -> Void = { _ in },
                            progress: @escaping @Sendable (BackupProgress) -> Void) throws -> BackupReport {
+        var report = BackupReport(id: UUID(), started: Date(), source: source.path,
+                                  destination: destination.path, status: "scanning", entries: [])
+        report.transferredBytes = 0
+        report.events = []
+        func checkpoint(_ value: BackupReport) throws {
+            if let localLogDirectory { try BackupHistory.save(value, to: localLogDirectory) }
+            snapshot(value)
+        }
+        try checkpoint(report)
+        do {
+            return try execute(source: source, destination: destination, deleteOriginals: deleteOriginals,
+                               report: &report, checkpoint: checkpoint, progress: progress)
+        } catch {
+            report.status = error is CancellationError ? "cancelled" : "failed"
+            report.error = error is CancellationError ? nil : error.localizedDescription
+            report.finished = Date()
+            report.events?.append(.init(time: Date(), phase: report.status, completedFiles: report.entries.count,
+                                        transferredBytes: report.transferredBytes ?? 0))
+            try checkpoint(report)
+            throw error
+        }
+    }
+    private static func execute(source: URL, destination: URL, deleteOriginals: Bool,
+                                report: inout BackupReport, checkpoint: (BackupReport) throws -> Void,
+                                progress: @escaping @Sendable (BackupProgress) -> Void) throws -> BackupReport {
         let source = source.standardizedFileURL.resolvingSymlinksInPath()
         let destination = destination.standardizedFileURL.resolvingSymlinksInPath()
         guard !contained(destination, in: source), !contained(source, in: destination) else {
@@ -109,6 +152,10 @@ public enum BackupEngine {
         let files = try mediaFiles(at: source)
         guard !files.isEmpty else { throw BackupError.invalid("相机 DCIM 中没有需要备份的文件。") }
         let totalBytes = try files.reduce(Int64(0)) { try $0 + size($1) }
+        report.totalFiles = files.count
+        report.totalBytes = totalBytes
+        report.status = "copying"
+        try checkpoint(report)
         let root = destination.appendingPathComponent("ActionVault", isDirectory: true)
         try safeTarget(root, root: destination)
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -117,14 +164,15 @@ public enum BackupEngine {
         let reports = root.appendingPathComponent("Reports", isDirectory: true)
         try safeTarget(reports, root: destination)
         try fm.createDirectory(at: reports, withIntermediateDirectories: true)
-        var report = BackupReport(id: UUID(), started: Date(), source: source.path, destination: destination.path, status: "copying", entries: [])
         let reportURL = reports.appendingPathComponent("\(report.id.uuidString).json")
-        func save() throws {
+        func save(_ report: BackupReport) throws {
+            try checkpoint(report)
             let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; encoder.dateEncodingStrategy = .iso8601
             try encoder.encode(report).write(to: reportURL, options: .atomic)
         }
-        try save()
+        try save(report)
         var bytes: Int64 = 0
+        var lastCheckpoint = Date()
         do {
             for (index, file) in files.enumerated() {
                 try Task.checkCancellation()
@@ -156,6 +204,13 @@ public enum BackupEngine {
                         if data.isEmpty { break }
                         try output.write(contentsOf: data)
                         copied += Int64(data.count)
+                        report.transferredBytes = (report.transferredBytes ?? 0) + Int64(data.count)
+                        if Date().timeIntervalSince(lastCheckpoint) >= 5 {
+                            report.events?.append(.init(time: Date(), phase: "copying", completedFiles: report.entries.count,
+                                                        transferredBytes: report.transferredBytes ?? 0))
+                            try checkpoint(report)
+                            lastCheckpoint = Date()
+                        }
                         progress(.init(phase: "复制文件", file: relative, completed: index, total: files.count, bytes: bytes + copied, totalBytes: totalBytes))
                     }
                     try output.synchronize()
@@ -166,14 +221,16 @@ public enum BackupEngine {
                     }
                     try fm.moveItem(at: partial, to: target)
                 }
-                report.entries.append(.init(source: relative, destination: String(target.path.dropFirst(destination.path.count + 1)), sha256: hash, bytes: fileSize, reused: reused))
+                report.entries.append(.init(source: relative, destination: String(target.path.dropFirst(destination.path.count + 1)), sha256: hash, bytes: fileSize, reused: reused, completedAt: Date()))
+                report.events?.append(.init(time: Date(), phase: "verified", completedFiles: report.entries.count, transferredBytes: report.transferredBytes ?? 0))
                 bytes += fileSize
-                try save()
+                try save(report)
                 progress(.init(phase: "已验证", file: relative, completed: index + 1, total: files.count, bytes: bytes, totalBytes: totalBytes))
             }
             // No deletion is attempted unless every file has a verified, journaled backup.
-            report.status = "verified"; try save()
+            report.status = "verified"; try save(report)
             if deleteOriginals {
+                report.status = "cleaning"; try save(report)
                 for index in report.entries.indices {
                     try Task.checkCancellation()
                     let entry = report.entries[index]
@@ -188,15 +245,17 @@ public enum BackupEngine {
                     try Task.checkCancellation()
                     try fm.removeItem(at: original)
                     report.entries[index].deleted = true
-                    try save()
+                    try save(report)
                 }
             }
-            report.status = "completed"; report.finished = Date(); try save()
+            report.status = "completed"; report.finished = Date()
+            report.events?.append(.init(time: Date(), phase: "completed", completedFiles: report.entries.count, transferredBytes: report.transferredBytes ?? 0))
+            try save(report)
             return report
         } catch {
             report.status = error is CancellationError ? "cancelled" : "failed"
             report.error = error.localizedDescription; report.finished = Date()
-            try? save()
+            try? save(report)
             throw error
         }
     }
